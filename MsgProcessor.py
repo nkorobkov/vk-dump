@@ -102,9 +102,18 @@ class MsgProcessor:
     def organize_filestructure(self, save_path):
         self.t.ready()
         sc_name = self.vkapi.account.getProfileInfo(v=self.API_VERSION)['screen_name']
-        dirname = os.path.join(save_path, '{} at {}'.format(sc_name, time.asctime()))
+        dirname = os.path.join(save_path, sc_name)
         if not os.path.exists(dirname):
             os.makedirs(dirname)
+        else:
+            i = 1
+            while True:
+                new_dn = dirname + '_' + str(i)
+                if not os.path.exists(new_dn):
+                    os.makedirs(new_dn)
+                    dirname = new_dn
+                    break
+                i += 1
         return os.path.join(dirname, "{}.json")
 
     def save_all_messages_data(self, save_path, direct_only=False, test_run=False, min_len=None):
@@ -122,5 +131,6 @@ class MsgProcessor:
         self.logger.info('Meta info collected. \nTotal messages found: {}\Saving messages text in {}'
                          .format(data['total_msg_count'], name_template))
         for user_id, user_data in self.generate_full_conversations_from_draft(data, min_len):
+            user_data['timestamp'] = time.time()
             with open(name_template.format(user_id), 'w') as file:
                 json.dump(user_data, file, ensure_ascii=False)

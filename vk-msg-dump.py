@@ -5,7 +5,6 @@ from MsgProcessor import MsgProcessor
 from vk_session_utils import acquire_session
 
 APP_ID = '6787646'
-API_VERSION = '5.87'
 logger = logging.getLogger(__name__)
 
 parser = argparse.ArgumentParser(description='Dumps all your conversations on vk.com to local folder',
