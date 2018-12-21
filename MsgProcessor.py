@@ -13,9 +13,14 @@ class MsgProcessor:
     FIELDS = 'first_name,last_name,screen_name,bdate,common_count,is_friend,photo_max,photo_50'
     API_VERSION = '5.87'
 
-    def __init__(self, vkapi):
+    def __init__(self, vkapi, save_path, min_len=0):
         self.vkapi = vkapi
+        self.min_len = min_len
+        self.save_path = save_path
         self.t = Throater()
+        self.t.ready()
+        self.sc_name = self.vkapi.account.getProfileInfo(v=self.API_VERSION)['screen_name']
+        self.filename_template = os.path.join(save_path, self.sc_name, "{}", 'messages.json')
         self.logger = logging.getLogger(__name__)
         logging.basicConfig(format='%(asctime)s | %(levelname)s : %(message)s',
                             level=logging.INFO, stream=sys.stdout)
@@ -67,11 +72,11 @@ class MsgProcessor:
             data['items'][i] = batch
         return data
 
-    def estimate_requests(self, data, min_len=None):
+    def estimate_requests(self, data):
         r = 0
         l = 0
         for v in list(data['items'].values()):
-            if min_len is not None and v['count'] < min_len:
+            if v['count'] < self.min_len:
                 continue
             done = len(v['items'])
             left = v['new'] - done
@@ -79,10 +84,10 @@ class MsgProcessor:
             l += left
         return r, l
 
-    def generate_full_conversations_from_draft(self, data, filename_template, min_len=None):
+    def generate_full_conversations_from_draft(self, data):
         ids = list(data['items'].keys())
         ids.sort(key=lambda x: data['items'][x]['new'])
-        rn, nm = self.estimate_requests(data, min_len)
+        rn, nm = self.estimate_requests(data)
         if rn > 0:
             self.logger.info('Need to download {} new messages in {} requests'.format(nm, rn))
             pbar = tqdm.tqdm(total=rn)
@@ -90,7 +95,7 @@ class MsgProcessor:
             obj = data['items'][user_id]
             total = obj['count']
             done = len(obj['items'])
-            if min_len is not None and total < min_len:
+            if total < self.min_len:
                 continue
             if done >= total:
                 yield user_id, obj
@@ -103,15 +108,13 @@ class MsgProcessor:
                 pbar.update(expected_requests)
                 yield user_id, obj
 
-            obj_old = json.load(open(filename_template.format(user_id)))
+            obj_old = json.load(open(self.filename_template.format(user_id)))
             done_old = obj_old['count']
             done_new = done
-            done = done + done_old
             new_messages = total - done_old
             obj_old['count'] = total
             if new_messages <= done_new:
                 # no requests needed
-
                 obj_old['items'] = obj['items'][:new_messages] + obj_old['items']
                 # that is quite bad in terms of performance, TODO -- think of something better
             else:
@@ -126,10 +129,8 @@ class MsgProcessor:
         if rn > 0:
             pbar.close()
 
-    def organize_filestructure(self, save_path, convs):
-        self.t.ready()
-        sc_name = self.vkapi.account.getProfileInfo(v=self.API_VERSION)['screen_name']
-        dirname = os.path.join(save_path, sc_name)
+    def organize_filestructure(self, convs):
+        dirname = os.path.join(self.save_path, self.sc_name)
         for c in convs:
             user_dirname = os.path.join(dirname, str(self.id_form_conv(c)))
             if not os.path.exists(user_dirname):
@@ -144,10 +145,10 @@ class MsgProcessor:
     def id_is_direct(id):
         return 0 < id < 2000000000
 
-    def separate_changed_conversations(self, convs, filename_template):
+    def separate_changed_conversations(self, convs):
         changed_convs = []
         for c in convs:
-            filename = filename_template.format(self.id_form_conv(c))
+            filename = self.filename_template.format(self.id_form_conv(c))
             if not os.path.exists(filename):
                 c['downloaded'] = 0
                 changed_convs.append(c)
@@ -159,20 +160,20 @@ class MsgProcessor:
                     changed_convs.append(c)
         return changed_convs
 
-    def update_convs(self, changed_convs, filename_template, min_len):
+    def update_convs(self, changed_convs):
         self.logger.info(
             'Updating {} changed conversations \n Collecting meta info and estimates.'.format(len(changed_convs)))
         data = self.get_data_draft(changed_convs)
 
         self.logger.info('Meta info collected. \nTotal new messages found: {}\nSaving messages text in {}'
-                         .format(data['total_new_msg_count'], filename_template))
-        for user_id, user_data in self.generate_full_conversations_from_draft(data, filename_template, min_len):
+                         .format(data['total_new_msg_count'], self.filename_template))
+        for user_id, user_data in self.generate_full_conversations_from_draft(data):
             user_data['timestamp'] = time.time()
-            filename = filename_template.format(user_id)
+            filename = self.filename_template.format(user_id)
             with open(filename, 'w') as file:
                 json.dump(user_data, file, ensure_ascii=False)
 
-    def save_all_messages_data(self, save_path, direct_only=False, test_run=False, min_len=None):
+    def save_all_messages_data(self, direct_only=False, test_run=False):
         self.logger.info('Getting info about all conversations')
         convs = self.get_all_convs()
         convs_count = len(convs)
@@ -180,9 +181,9 @@ class MsgProcessor:
             convs = list(filter(lambda x: self.id_is_direct(self.id_form_conv(x)), convs))
         if test_run:
             convs = convs[:5]
-        filename_template = self.organize_filestructure(save_path, convs)
-        changed_convs = self.separate_changed_conversations(convs, filename_template)
+        self.organize_filestructure(convs)
+        changed_convs = self.separate_changed_conversations(convs)
         self.logger.info(
             'You got {} conversations \n {} of them changed since last backup'.format(convs_count, len(changed_convs)))
         if changed_convs:
-            self.update_convs(changed_convs, filename_template, min_len)
+            self.update_convs(changed_convs)
