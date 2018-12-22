@@ -11,7 +11,6 @@ import json
 class MsgProcessor:
     MAX_COUNT = 200
     FIELDS = 'first_name,last_name,screen_name,bdate,common_count,is_friend,photo_max,photo_50'
-    API_VERSION = '5.87'
 
     def __init__(self, vkapi, save_path, min_len=0):
         self.vkapi = vkapi
@@ -19,7 +18,7 @@ class MsgProcessor:
         self.save_path = save_path
         self.t = Throater()
         self.t.ready()
-        self.sc_name = self.vkapi.account.getProfileInfo(v=self.API_VERSION)['screen_name']
+        self.sc_name = self.vkapi.account.getProfileInfo()['screen_name']
         self.filename_template = os.path.join(save_path, self.sc_name, "{}", 'messages.json')
         self.logger = logging.getLogger(__name__)
         logging.basicConfig(format='%(asctime)s | %(levelname)s : %(message)s',
@@ -28,13 +27,13 @@ class MsgProcessor:
     def get_list(self, func, initial_offset=0, totalcount=10 ** 10, **kwargs):
         i = 0
         self.t.ready()
-        things = func(v=self.API_VERSION, count=self.MAX_COUNT, offset=initial_offset, **kwargs)
+        things = func(count=self.MAX_COUNT, offset=initial_offset, **kwargs)
         count = min(things['count'] - initial_offset, totalcount)
         things = things['items']
         while len(things) < count:
             i += 1
             self.t.ready()
-            new_things = func(v=self.API_VERSION, count=min(self.MAX_COUNT, count - len(things)),
+            new_things = func(count=min(self.MAX_COUNT, count - len(things)),
                               offset=initial_offset + len(things), **kwargs)
             things.extend(new_things['items'])
         return things
@@ -61,8 +60,7 @@ class MsgProcessor:
         for c in tqdm.tqdm(convs):
             i = self.id_form_conv(c)
             self.t.ready()
-            batch = self.vkapi.messages.getHistory(v=self.API_VERSION,
-                                                   count=self.MAX_COUNT,
+            batch = self.vkapi.messages.getHistory(count=self.MAX_COUNT,
                                                    extended=1,
                                                    fields=self.FIELDS,
                                                    peer_id=i)

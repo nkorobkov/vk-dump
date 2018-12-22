@@ -1,4 +1,3 @@
-import vk
 import argparse
 import logging
 from MsgProcessor import MsgProcessor
@@ -23,6 +22,6 @@ parser.add_argument('--min-len', type=int, default=0,
 if __name__ == '__main__':
     args = parser.parse_args()
     session = acquire_session(args.creds, APP_ID, 'messages', logger)
-    vkapi = vk.API(session)
+    vkapi = session.get_api()
     msg_processor = MsgProcessor(vkapi, save_path=args.save_path, min_len=args.min_len)
     msg_processor.save_all_messages_data(direct_only=args.direct_only, test_run=args.test)
