@@ -77,7 +77,7 @@ class MsgProcessor:
             if v['count'] < self.min_len:
                 continue
             done = len(v['items'])
-            left = v['new'] - done
+            left = max(v['new'] - done, 0)
             r += math.ceil(left / self.MAX_COUNT)
             l += left
         return r, l
