@@ -48,3 +48,7 @@ def acquire_session(creds, app_id, scope, logger):
     else:
         session = acquire_session_from_user(logger, app_id=app_id, scope=scope)
     return session
+
+
+def id_is_direct(id):
+    return 0 < id < 2000000000

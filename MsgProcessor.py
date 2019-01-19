@@ -6,6 +6,7 @@ import sys
 import os
 import time
 import json
+from vk_utils import id_is_direct
 
 
 class MsgProcessor:
@@ -21,7 +22,7 @@ class MsgProcessor:
         self.sc_name = self.vkapi.account.getProfileInfo()['screen_name']
         self.filename_template = os.path.join(save_path, self.sc_name, "{}", 'messages.json')
         self.logger = logging.getLogger(__name__)
-        logging.basicConfig(format='%(asctime)s | %(levelname)s : %(message)s',
+        logging.basicConfig(format='%(message)s',
                             level=logging.INFO, stream=sys.stdout)
 
     def get_list(self, func, initial_offset=0, totalcount=10 ** 10, **kwargs):
@@ -133,15 +134,11 @@ class MsgProcessor:
             user_dirname = os.path.join(dirname, str(self.id_form_conv(c)))
             if not os.path.exists(user_dirname):
                 os.makedirs(user_dirname)
-        return os.path.join(dirname, "{}", 'messages.json')
+        return dirname
 
     @staticmethod
     def id_form_conv(c):
         return c['conversation']['peer']['id']
-
-    @staticmethod
-    def id_is_direct(id):
-        return 0 < id < 2000000000
 
     def separate_changed_conversations(self, convs):
         changed_convs = []
@@ -160,10 +157,10 @@ class MsgProcessor:
 
     def update_convs(self, changed_convs):
         self.logger.info(
-            'Updating {} changed conversations \n Collecting meta info and estimates.'.format(len(changed_convs)))
+            'Updating {} changed conversations. Collecting meta info and estimates.'.format(len(changed_convs)))
         data = self.get_data_draft(changed_convs)
 
-        self.logger.info('Meta info collected. \nTotal new messages found: {}\nSaving messages text in {}'
+        self.logger.info('Meta info collected. Total new messages found: {}\nSaving messages text in {}'
                          .format(data['total_new_msg_count'], self.filename_template))
         for user_id, user_data in self.generate_full_conversations_from_draft(data):
             user_data['timestamp'] = time.time()
@@ -176,12 +173,13 @@ class MsgProcessor:
         convs = self.get_all_convs()
         convs_count = len(convs)
         if direct_only:
-            convs = list(filter(lambda x: self.id_is_direct(self.id_form_conv(x)), convs))
+            convs = list(filter(lambda x: id_is_direct(self.id_form_conv(x)), convs))
         if test_run:
             convs = convs[:5]
-        self.organize_filestructure(convs)
+        save_path = self.organize_filestructure(convs)
         changed_convs = self.separate_changed_conversations(convs)
         self.logger.info(
-            'You got {} conversations \n {} of them changed since last backup'.format(convs_count, len(changed_convs)))
+            'You got {} conversations. {} of them changed since last backup'.format(convs_count, len(changed_convs)))
         if changed_convs:
             self.update_convs(changed_convs)
+        return save_path
