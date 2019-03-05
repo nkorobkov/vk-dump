@@ -8,7 +8,8 @@ import time
 def process_task(task: DTask):
     try:
         r = (True, task.process())
-    except LinkOutdatedException:
+    except LinkOutdatedException as e:
+        task.error = e
         r = (False, task)
     return r
 
@@ -34,5 +35,5 @@ class DTaskProcessor:
                             failed_tasks.append(r[1])
                             td.update(r[1].size)
                         else:
-                            td.update(r[1])
+                            td.update(r[1].size)
             return failed_tasks
