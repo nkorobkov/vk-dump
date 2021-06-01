@@ -1,4 +1,4 @@
 jupyter==1.0.0
 vk-api==11.3.0
-urllib3==1.24.2
+urllib3==1.26.5
 tqdm==4.28.1
